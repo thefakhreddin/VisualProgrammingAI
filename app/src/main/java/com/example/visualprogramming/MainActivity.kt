@@ -11,11 +11,12 @@ import android.widget.ImageView
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.lifecycleScope
-import kotlinx.android.synthetic.main.activity_main.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.tensorflow.lite.support.image.TensorImage
 import org.tensorflow.lite.task.vision.detector.ObjectDetector
+import kotlin.math.pow
+import kotlin.math.sqrt
 
 
 class MainActivity : AppCompatActivity() {
@@ -102,6 +103,7 @@ class MainActivity : AppCompatActivity() {
         runOnUiThread {
             ivPhoto.setImageBitmap(imgWithResult)
         }
+        detectProximity(resultToDisplay)
     }
 
     private fun drawDetectionResult(
@@ -146,11 +148,36 @@ class MainActivity : AppCompatActivity() {
         return outputBitmap
     }
 
+    private fun detectProximity(detectionResults: List<DetectionResult>) {
+        detectionResults.forEach { currentBlock ->
+            val currentBlockCenter = BlockCenter(
+                currentBlock.boundingBox.right - currentBlock.boundingBox.left,
+                currentBlock.boundingBox.top - currentBlock.boundingBox.bottom
+            )
+            detectionResults.forEach { destinationBlock ->
+                if(currentBlock != destinationBlock) {
+                    val itCenter = BlockCenter(
+                        destinationBlock.boundingBox.right - destinationBlock.boundingBox.left,
+                        destinationBlock.boundingBox.top - destinationBlock.boundingBox.bottom
+                    )
+                    val distance = euclideanDistance(currentBlockCenter, itCenter)
+                }
+            }
+        }
+    }
+
     private fun getSampleImage(drawable: Int): Bitmap {
         return BitmapFactory.decodeResource(resources, drawable, BitmapFactory.Options().apply {
             inMutable = true
         })
     }
+
+    private fun euclideanDistance(aCenter: BlockCenter, bCenter: BlockCenter): Float {
+        return sqrt(
+            (aCenter.x - bCenter.x).pow(2) + (aCenter.y - bCenter.y).pow(2)
+        )
+    }
 }
 
 data class DetectionResult(val boundingBox: RectF, val text: String)
+data class  BlockCenter(val x: Float, val y: Float)
