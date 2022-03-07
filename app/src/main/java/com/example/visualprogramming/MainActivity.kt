@@ -27,6 +27,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnOpenCamera: Button
     private lateinit var btnSampleImage: Button
     private lateinit var ivPhoto: ImageView
+    var turn = 1
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -53,7 +54,15 @@ class MainActivity : AppCompatActivity() {
         }
 
         btnSampleImage.setOnClickListener {
-            setViewAndDetect(getSampleImage(R.drawable.sample_2))
+            if(turn < 3)
+                turn = turn + 1
+            else turn = 1
+            if(turn == 1)
+                setViewAndDetect(getSampleImage(R.drawable.smaple_1))
+            else if(turn == 2)
+                setViewAndDetect(getSampleImage(R.drawable.sample_2))
+            else if(turn == 3)
+                setViewAndDetect(getSampleImage(R.drawable.sample_3))
         }
     }
 
