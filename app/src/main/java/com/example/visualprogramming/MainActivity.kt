@@ -15,6 +15,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.tensorflow.lite.support.image.TensorImage
 import org.tensorflow.lite.task.vision.detector.ObjectDetector
+import java.util.*
+import kotlin.math.abs
 import kotlin.math.pow
 import kotlin.math.sqrt
 
@@ -28,9 +30,12 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnOpenCamera: Button
     private lateinit var btnSampleImage: Button
     private lateinit var ivPhoto: ImageView
+
+    private lateinit var mainSequence: MutableList<DetectionResult>
     var turn = 1
 
     override fun onCreate(savedInstanceState: Bundle?) {
+
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
@@ -44,9 +49,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-//        val cameraIntent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
-//        resultLauncher.launch(cameraIntent)
-
 
         btnOpenCamera.setOnClickListener {
             //intent to open camera app
@@ -55,14 +57,20 @@ class MainActivity : AppCompatActivity() {
         }
 
         btnSampleImage.setOnClickListener {
-            if(turn < 3)
+            if(turn < 6)
                 turn = turn + 1
             else turn = 1
             if(turn == 1)
-                setViewAndDetect(getSampleImage(R.drawable.smaple_1))
+                setViewAndDetect(getSampleImage(R.drawable.sample_4))
             else if(turn == 2)
-                setViewAndDetect(getSampleImage(R.drawable.sample_2))
+                setViewAndDetect(getSampleImage(R.drawable.sample_5))
             else if(turn == 3)
+                setViewAndDetect(getSampleImage(R.drawable.sample_6))
+            else if(turn == 4)
+                setViewAndDetect(getSampleImage(R.drawable.smaple_1))
+            else if(turn == 5)
+                setViewAndDetect(getSampleImage(R.drawable.sample_2))
+            else if(turn == 6)
                 setViewAndDetect(getSampleImage(R.drawable.sample_3))
         }
     }
@@ -103,7 +111,7 @@ class MainActivity : AppCompatActivity() {
         runOnUiThread {
             ivPhoto.setImageBitmap(imgWithResult)
         }
-        detectProximity(resultToDisplay)
+        interpretResult(resultToDisplay)
     }
 
     private fun drawDetectionResult(
@@ -147,37 +155,138 @@ class MainActivity : AppCompatActivity() {
         }
         return outputBitmap
     }
-
-    private fun detectProximity(detectionResults: List<DetectionResult>) {
-        detectionResults.forEach { currentBlock ->
-            val currentBlockCenter = BlockCenter(
-                currentBlock.boundingBox.right - currentBlock.boundingBox.left,
-                currentBlock.boundingBox.top - currentBlock.boundingBox.bottom
-            )
-            detectionResults.forEach { destinationBlock ->
-                if(currentBlock != destinationBlock) {
-                    val itCenter = BlockCenter(
-                        destinationBlock.boundingBox.right - destinationBlock.boundingBox.left,
-                        destinationBlock.boundingBox.top - destinationBlock.boundingBox.bottom
-                    )
-                    val distance = euclideanDistance(currentBlockCenter, itCenter)
-                }
-            }
-        }
-    }
-
     private fun getSampleImage(drawable: Int): Bitmap {
         return BitmapFactory.decodeResource(resources, drawable, BitmapFactory.Options().apply {
             inMutable = true
         })
     }
 
-    private fun euclideanDistance(aCenter: BlockCenter, bCenter: BlockCenter): Float {
-        return sqrt(
-            (aCenter.x - bCenter.x).pow(2) + (aCenter.y - bCenter.y).pow(2)
+    private fun interpretResult(detectionResults: List<DetectionResult>) {
+        val runBlock: DetectionResult? = detectionResults.firstOrNull{it.text.startsWith("run")}
+        if(runBlock!=null) {
+            appendToSequence(runBlock)
+            val firstBlock = validOverlap(runBlock!!,detectionResults, true)
+            if(firstBlock!=null) {
+                appendToSequence(firstBlock)
+                while (true) {
+                    val nextBlock = validOverlap(
+                        mainSequence.last(),
+                        detectionResults,
+                        false,
+                        mainSequenceLine(runBlock!!, firstBlock),
+                        )
+                }
+            }
+        }
+    }
+
+
+    private fun mainSequenceLine(runBlock: DetectionResult, firstBlock: DetectionResult): Line {
+        val runBlockCenter = BoxCenter(
+            (runBlock.boundingBox.top + runBlock.boundingBox.bottom) /2,
+            (runBlock.boundingBox.left + runBlock.boundingBox.right) /2,
         )
+        val firstBlockCenter = BoxCenter(
+            (runBlock.boundingBox.top + runBlock.boundingBox.bottom) /2,
+            (runBlock.boundingBox.left + runBlock.boundingBox.right) /2,
+        )
+        val slope = (firstBlockCenter.y - runBlockCenter.y)/(firstBlockCenter.x - runBlockCenter.x)
+        return Line(
+            runBlockCenter,
+            slope
+        )
+    }
+
+    private fun closeToMainLine(line: Line, block: DetectionResult): Boolean {
+        val blockCenter = BoxCenter(
+            (block.boundingBox.top + block.boundingBox.bottom) /2,
+            (block.boundingBox.left + block.boundingBox.right) /2,
+        )
+        val a = line.slope
+        val b = -1
+        val c = -line.slope*line.coordinate.x+line.coordinate.y
+
+        val dist = abs(a*blockCenter.x + b*blockCenter.y + c) / sqrt(a.toDouble().pow(2.0) + b.toDouble().pow(2.0))
+        if(dist < 200) return true
+        return false
+    }
+    private fun validOverlap(
+        block: DetectionResult,
+        blockList: List<DetectionResult>,
+        isFirst: Boolean = false,
+        line: Line? = null): DetectionResult? {
+        val currentRect = Rect(block.boundingBox.left,
+                             block.boundingBox.right,
+                             block.boundingBox.top,
+                             block.boundingBox.bottom)
+        blockList.forEach{
+            val rect = Rect(it.boundingBox.left,
+                            it.boundingBox.right,
+                            it.boundingBox.top,
+                            it.boundingBox.bottom)
+
+            if(currentRect.left < rect.right &&
+                currentRect.right > rect.left &&
+                currentRect.bottom < rect.top &&
+                currentRect.top > rect.bottom) {
+                if(!mainSequence.contains(it)) {
+                    if (isFirst) return it
+                    else {
+                        if(line!=null)
+                            if(closeToMainLine(line, it)){
+                                return it
+                            }
+                    }
+                }
+            }
+        }
+        return null
+    }
+
+    private fun checkOverlapping(currentBlock: DetectionResult, destinationBlock: DetectionResult): Boolean{
+        val rect1 = Rect(currentBlock.boundingBox.left,
+                         currentBlock.boundingBox.right,
+                         currentBlock.boundingBox.top,
+                         currentBlock.boundingBox.bottom)
+        val rect2 = Rect(destinationBlock.boundingBox.left,
+                         destinationBlock.boundingBox.right,
+                         destinationBlock.boundingBox.top,
+                         destinationBlock.boundingBox.bottom)
+
+        if(rect1.left < rect2.right &&
+                rect1.right > rect2.left &&
+                rect1.bottom < rect2.top &&
+                rect1.top > rect2.bottom) {
+            return true
+        }
+        return  false
+    }
+
+
+    private fun blockType(block: DetectionResult): String {
+        val type = block.text
+        if(type == "0"
+        || type == "1"
+        || type == "2"
+        || type == "3"
+        || type == "4"
+        || type == "5"
+        || type == "6"
+        || type == "7"
+        || type == "8"
+        || type == "9")
+            return "numeric"
+        return "function"
+    }
+
+    private fun appendToSequence(newBlock: DetectionResult?) {
+        if (newBlock != null) {
+            mainSequence.add(newBlock)
+        }
     }
 }
 
 data class DetectionResult(val boundingBox: RectF, val text: String)
-data class  BlockCenter(val x: Float, val y: Float)
+data class Rect(val left: Float, val right: Float, val bottom: Float, val top: Float)
+data class Line(val coordinate: BoxCenter, val slope: Float)
+data class BoxCenter(val x: Float, val y: Float)
