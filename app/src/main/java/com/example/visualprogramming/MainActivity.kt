@@ -51,12 +51,14 @@ class MainActivity : AppCompatActivity() {
 
 
         btnOpenCamera.setOnClickListener {
+            mainSequence = mutableListOf<DetectionResult>()
             //intent to open camera app
             val cameraIntent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
             resultLauncher.launch(cameraIntent)
         }
 
         btnSampleImage.setOnClickListener {
+            mainSequence = mutableListOf<DetectionResult>()
             if(turn < 6)
                 turn = turn + 1
             else turn = 1
@@ -73,6 +75,8 @@ class MainActivity : AppCompatActivity() {
             else if(turn == 6)
                 setViewAndDetect(getSampleImage(R.drawable.sample_3))
         }
+
+        mainSequence = mutableListOf<DetectionResult>()
     }
 
 
@@ -175,6 +179,9 @@ class MainActivity : AppCompatActivity() {
                         false,
                         mainSequenceLine(runBlock!!, firstBlock),
                         )
+                    if(nextBlock!=null)
+                        appendToSequence(nextBlock)
+                    else break
                 }
             }
         }
@@ -187,8 +194,8 @@ class MainActivity : AppCompatActivity() {
             (runBlock.boundingBox.left + runBlock.boundingBox.right) /2,
         )
         val firstBlockCenter = BoxCenter(
-            (runBlock.boundingBox.top + runBlock.boundingBox.bottom) /2,
-            (runBlock.boundingBox.left + runBlock.boundingBox.right) /2,
+            (firstBlock.boundingBox.top + firstBlock.boundingBox.bottom) /2,
+            (firstBlock.boundingBox.left + firstBlock.boundingBox.right) /2,
         )
         val slope = (firstBlockCenter.y - runBlockCenter.y)/(firstBlockCenter.x - runBlockCenter.x)
         return Line(
