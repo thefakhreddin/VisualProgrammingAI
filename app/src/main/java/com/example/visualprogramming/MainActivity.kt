@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.provider.MediaStore
 import android.widget.Button
 import android.widget.ImageView
+import android.widget.TextView
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.lifecycleScope
@@ -23,14 +24,14 @@ import kotlin.math.sqrt
 
 class MainActivity : AppCompatActivity() {
     companion object {
-        private const val MAX_FONT_SIZE = 70F
+        private const val MAX_FONT_SIZE = 50F
     }
     private lateinit var resultLauncher: ActivityResultLauncher<Intent>
 
     private lateinit var btnOpenCamera: Button
     private lateinit var btnSampleImage: Button
     private lateinit var ivPhoto: ImageView
-
+    private lateinit var tvSequence: TextView
     private lateinit var mainSequence: MutableList<DetectionResult>
     var turn = 1
 
@@ -42,6 +43,7 @@ class MainActivity : AppCompatActivity() {
         btnOpenCamera = findViewById(R.id.btnOpenCamera)
         btnSampleImage = findViewById(R.id.btnSampleImage)
         ivPhoto = findViewById(R.id.ivImage)
+        tvSequence = findViewById(R.id.textView)
 
         resultLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             if (result.resultCode == Activity.RESULT_OK) {
@@ -88,6 +90,7 @@ class MainActivity : AppCompatActivity() {
     private fun setViewAndDetect(bitmap: Bitmap) {
         ivPhoto.setImageBitmap(bitmap)
         lifecycleScope.launch(Dispatchers.Default) { runObjectDetection(bitmap) }
+
     }
 
     private fun runObjectDetection(bitmap: Bitmap) {
@@ -116,6 +119,10 @@ class MainActivity : AppCompatActivity() {
             ivPhoto.setImageBitmap(imgWithResult)
         }
         interpretResult(resultToDisplay)
+
+        runOnUiThread(){
+            printResults(mainSequence)
+        }
     }
 
     private fun drawDetectionResult(
@@ -130,7 +137,7 @@ class MainActivity : AppCompatActivity() {
         detectionResults.forEach {
             // draw bounding box
             pen.color = Color.RED
-            pen.strokeWidth = 4F
+            pen.strokeWidth = 1F
             pen.style = Paint.Style.STROKE
             val box = it.boundingBox
             canvas.drawRect(box, pen)
@@ -139,23 +146,23 @@ class MainActivity : AppCompatActivity() {
             val tagSize = Rect(0, 0, 0, 0)
 
             // calculate the right font size
-            pen.style = Paint.Style.FILL
-            pen.color = Color.YELLOW
-            pen.strokeWidth = 1F
+//            pen.style = Paint.Style.FILL_AND_STROKE
+//            pen.color = Color.YELLOW
+//            pen.strokeWidth = 2F
 
-            pen.textSize = MAX_FONT_SIZE
-            pen.getTextBounds(it.text, 0, it.text.length, tagSize)
-            val fontSize: Float = pen.textSize * box.width() / tagSize.width()
+//            pen.textSize = MAX_FONT_SIZE
+//            pen.getTextBounds(it.text, 0, it.text.length, tagSize)
+//            val fontSize: Float = pen.textSize * box.width() / tagSize.width()
 
             // adjust the font size so texts are inside the bounding box
-            if (fontSize < pen.textSize) pen.textSize = fontSize
+//            if (fontSize < pen.textSize) pen.textSize = fontSize
 
-            var margin = (box.width() - tagSize.width()) / 2.0F
-            if (margin < 0F) margin = 0F
-            canvas.drawText(
-                it.text, box.left + margin,
-                box.top + tagSize.height().times(1F), pen
-            )
+//            var margin = (box.width() - tagSize.width()) / 2.0F
+//            if (margin < 0F) margin = 0F
+//            canvas.drawText(
+//                it.text, box.left + margin,
+//                box.top + tagSize.height().times(1F), pen
+//            )
         }
         return outputBitmap
     }
@@ -169,22 +176,42 @@ class MainActivity : AppCompatActivity() {
         val runBlock: DetectionResult? = detectionResults.firstOrNull{it.text.startsWith("run")}
         if(runBlock!=null) {
             appendToSequence(runBlock)
-            val firstBlock = validOverlap(runBlock!!,detectionResults, true)
+            val firstBlock = validOverlap(runBlock,detectionResults, true)
             if(firstBlock!=null) {
                 appendToSequence(firstBlock)
+                val mainLine = mainSequenceLine(runBlock, firstBlock)
                 while (true) {
                     val nextBlock = validOverlap(
                         mainSequence.last(),
                         detectionResults,
                         false,
-                        mainSequenceLine(runBlock!!, firstBlock),
+                        mainLine
                         )
-                    if(nextBlock!=null)
+                    if(nextBlock!=null) {
                         appendToSequence(nextBlock)
+                        val perpendicularLine = perpendicularSequenceLine(
+                            mainLine,
+                            mainSequence.last()
+                        )
+                        while (true){
+                            val argumentBlock = validOverlap(
+                                mainSequence.last(),
+                                detectionResults,
+                                false,
+                                perpendicularLine
+                            )
+                            if(argumentBlock!=null) {
+                                appendToSequence(argumentBlock)
+                            } else break
+                        }
+                    }
                     else break
                 }
             }
+        } else {
+            println("couldn't interpret image")
         }
+
     }
 
 
@@ -201,6 +228,17 @@ class MainActivity : AppCompatActivity() {
         return Line(
             runBlockCenter,
             slope
+        )
+    }
+
+    private fun perpendicularSequenceLine(line: Line, head: DetectionResult): Line {
+        val headCenter = BoxCenter(
+            (head.boundingBox.top + head.boundingBox.bottom) /2,
+            (head.boundingBox.left + head.boundingBox.right) /2,
+        )
+        return Line(
+            headCenter,
+            -1/line.slope
         )
     }
 
@@ -290,6 +328,14 @@ class MainActivity : AppCompatActivity() {
         if (newBlock != null) {
             mainSequence.add(newBlock)
         }
+    }
+
+    private fun printResults(mainSequence: List<DetectionResult>) {
+        var text: String = ""
+        mainSequence.forEach {
+            text = text + it.text + "\n"
+        }
+        tvSequence.text = text
     }
 }
 

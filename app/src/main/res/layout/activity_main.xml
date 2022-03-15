@@ -10,8 +10,8 @@
         android:id="@+id/btnOpenCamera"
         android:layout_width="200dp"
         android:layout_height="60dp"
-        android:text="Open Camera"
         android:layout_marginBottom="10dp"
+        android:text="Open Camera"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent" />
@@ -30,10 +30,21 @@
         android:id="@+id/btnSampleImage"
         android:layout_width="wrap_content"
         android:layout_height="60dp"
-        android:text="Sample"
         android:layout_marginBottom="10dp"
+        android:text="Sample"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toEndOf="@+id/btnOpenCamera" />
+
+    <TextView
+        android:id="@+id/textView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:alpha="0.8"
+        android:background="#575757"
+        android:textColor="#F44336"
+        android:textSize="20sp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="@+id/ivImage" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
